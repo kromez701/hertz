@@ -8970,37 +8970,43 @@
   </style>
 
   <script>
-    // Prevent infinite reload / redirect loops
+    // Implementation of the reload protection
     (function () {
-      // Use sessionStorage so it resets when the tab is closed
-      if (sessionStorage.getItem("reloaded")) {
-        console.warn("Infinite reload prevented.");
-        sessionStorage.removeItem("reloaded");
+      // Check if we've already loaded once
+      if (sessionStorage.getItem("pageLoaded") === "true") {
+        // Page is trying to reload, stop it
+        console.warn("Prevented unwanted page reload");
+
+        // You can choose to:
+        // 1. Redirect to a safe page
+        // window.location.href = '/safe-page.html';
+
+        // 2. Or simply stop further execution
+        // throw new Error('Page reload prevented');
+
+        // 3. Or display a message to the user
+        // alert('Page reloading has been disabled');
       } else {
-        sessionStorage.setItem("reloaded", "true");
-        // If you *need* one reload, uncomment next line:
-        // location.reload();
-      }
-    })();
-  </script>
-
-  <script>
-    // 🔒 Stop infinite reload loop
-    (function () {
-      // If we've already been here once in this tab, stop reload
-      if (sessionStorage.getItem("stopReload")) {
-        console.warn("🚫 Infinite reload prevented.");
-        return; // Do nothing → prevents reload
+        // Mark page as loaded
+        sessionStorage.setItem("pageLoaded", "true");
       }
 
-      // First visit → mark it
-      sessionStorage.setItem("stopReload", "true");
-
-      // ❌ Disable any further reload attempts
-      const originalReload = window.location.reload;
-      window.location.reload = function () {
-        console.warn("🚫 Reload attempt blocked.");
-      };
+      // Clear the flag when page is unloaded (closed or navigated away from)
+      window.addEventListener("beforeunload", function () {
+        sessionStorage.removeItem("pageLoaded");
+      });
     })();
+
+    // For demonstration purposes
+    function simulateRedirect() {
+      alert("This would normally cause a reload but is now prevented.");
+      // This won't actually reload due to our protection
+      window.location.href = window.location.href;
+    }
+
+    function forceReload() {
+      sessionStorage.removeItem("pageLoaded");
+      window.location.reload();
+    }
   </script>
 </html>
