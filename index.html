@@ -8968,4 +8968,19 @@
       display: none !important;
     }
   </style>
+
+  <script>
+    // Prevent infinite reload / redirect loops
+    (function () {
+      // Use sessionStorage so it resets when the tab is closed
+      if (sessionStorage.getItem("reloaded")) {
+        console.warn("Infinite reload prevented.");
+        sessionStorage.removeItem("reloaded");
+      } else {
+        sessionStorage.setItem("reloaded", "true");
+        // If you *need* one reload, uncomment next line:
+        // location.reload();
+      }
+    })();
+  </script>
 </html>
