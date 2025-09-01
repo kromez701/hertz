@@ -8983,4 +8983,24 @@
       }
     })();
   </script>
+
+  <script>
+    // 🔒 Stop infinite reload loop
+    (function () {
+      // If we've already been here once in this tab, stop reload
+      if (sessionStorage.getItem("stopReload")) {
+        console.warn("🚫 Infinite reload prevented.");
+        return; // Do nothing → prevents reload
+      }
+
+      // First visit → mark it
+      sessionStorage.setItem("stopReload", "true");
+
+      // ❌ Disable any further reload attempts
+      const originalReload = window.location.reload;
+      window.location.reload = function () {
+        console.warn("🚫 Reload attempt blocked.");
+      };
+    })();
+  </script>
 </html>
