@@ -2,6 +2,315 @@
 
 <html class="no-js" lang="en" dir="ltr">
   <head>
+    <script>
+      // Anti-Reload Loop Protection System
+      // Place this script in the <head> section or at the very beginning of your page
+
+      (function () {
+        "use strict";
+
+        // Configuration
+        const CONFIG = {
+          maxReloads: 3, // Maximum reloads allowed within time window
+          timeWindow: 30000, // Time window in milliseconds (30 seconds)
+          storageKey: "pageReloadTracker",
+          contentLoadTimeout: 15000, // Max time to wait for content (15 seconds)
+          debugMode: false, // Set to true for console logging
+        };
+
+        // Utility functions
+        function log(message, type = "info") {
+          if (CONFIG.debugMode) {
+            console[type](`[ReloadProtection] ${message}`);
+          }
+        }
+
+        function getReloadData() {
+          try {
+            const data = sessionStorage.getItem(CONFIG.storageKey);
+            return data
+              ? JSON.parse(data)
+              : { count: 0, timestamps: [], blocked: false };
+          } catch (e) {
+            return { count: 0, timestamps: [], blocked: false };
+          }
+        }
+
+        function setReloadData(data) {
+          try {
+            sessionStorage.setItem(CONFIG.storageKey, JSON.stringify(data));
+          } catch (e) {
+            log("Could not save reload data to sessionStorage", "warn");
+          }
+        }
+
+        function isWithinTimeWindow(timestamp) {
+          return Date.now() - timestamp < CONFIG.timeWindow;
+        }
+
+        // Main protection logic
+        function initReloadProtection() {
+          const reloadData = getReloadData();
+          const currentTime = Date.now();
+
+          // Clean old timestamps
+          reloadData.timestamps =
+            reloadData.timestamps.filter(isWithinTimeWindow);
+
+          // Add current page load timestamp
+          reloadData.timestamps.push(currentTime);
+          reloadData.count = reloadData.timestamps.length;
+
+          log(`Page load detected. Count in window: ${reloadData.count}`);
+
+          // Check if we've exceeded the reload limit
+          if (reloadData.count > CONFIG.maxReloads) {
+            reloadData.blocked = true;
+            setReloadData(reloadData);
+            blockReloads();
+            showWarningMessage();
+            return true; // Blocked
+          }
+
+          setReloadData(reloadData);
+          return false; // Not blocked
+        }
+
+        function blockReloads() {
+          log("Blocking reload attempts", "warn");
+
+          // Prevent location.reload()
+          const originalReload = window.location.reload;
+          window.location.reload = function () {
+            log("Blocked location.reload() attempt", "warn");
+            return false;
+          };
+
+          // Prevent window.location redirects to same page
+          const originalLocationSetter = Object.getOwnPropertyDescriptor(
+            window,
+            "location"
+          ).set;
+          Object.defineProperty(window, "location", {
+            set: function (value) {
+              if (
+                value === window.location.href ||
+                value === window.location.pathname
+              ) {
+                log("Blocked location redirect attempt", "warn");
+                return;
+              }
+              originalLocationSetter.call(window, value);
+            },
+            get: function () {
+              return window.location;
+            },
+          });
+
+          // Block refresh via history manipulation
+          const originalReplaceState = history.replaceState;
+          const originalPushState = history.pushState;
+
+          history.replaceState = function (state, title, url) {
+            if (!url || url === window.location.href) {
+              log("Blocked history.replaceState reload attempt", "warn");
+              return;
+            }
+            originalReplaceState.apply(history, arguments);
+          };
+
+          history.pushState = function (state, title, url) {
+            if (!url || url === window.location.href) {
+              log("Blocked history.pushState reload attempt", "warn");
+              return;
+            }
+            originalPushState.apply(history, arguments);
+          };
+
+          // Block form submissions that might cause reloads
+          document.addEventListener(
+            "submit",
+            function (e) {
+              const form = e.target;
+              if (form.action === window.location.href || !form.action) {
+                log("Blocked form submission that could cause reload", "warn");
+                e.preventDefault();
+                e.stopPropagation();
+              }
+            },
+            true
+          );
+
+          // Block beforeunload events that might trigger reloads
+          window.addEventListener("beforeunload", function (e) {
+            e.preventDefault();
+            e.returnValue = "";
+            log("Blocked beforeunload event", "warn");
+          });
+        }
+
+        function showWarningMessage() {
+          // Create warning overlay
+          const overlay = document.createElement("div");
+          overlay.id = "reload-warning-overlay";
+          overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999999;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+        `;
+
+          const message = document.createElement("div");
+          message.style.cssText = `
+            background: #dc3545;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            max-width: 500px;
+            margin: 20px;
+        `;
+
+          message.innerHTML = `
+            <h3 style="margin-top: 0;">⚠️ Reload Loop Detected</h3>
+            <p>This page has been reloading too frequently. Automatic reloads have been blocked to prevent an infinite loop.</p>
+            <button id="manual-reload-btn" style="
+                background: #fff;
+                color: #dc3545;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+                cursor: pointer;
+                font-weight: bold;
+                margin: 10px 5px;
+            ">Manual Reload</button>
+            <button id="reset-protection-btn" style="
+                background: #28a745;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+                cursor: pointer;
+                font-weight: bold;
+                margin: 10px 5px;
+            ">Reset Protection</button>
+        `;
+
+          overlay.appendChild(message);
+          document.body.appendChild(overlay);
+
+          // Add button event listeners
+          document.getElementById("manual-reload-btn").onclick = function () {
+            sessionStorage.removeItem(CONFIG.storageKey);
+            window.location.reload(true);
+          };
+
+          document.getElementById("reset-protection-btn").onclick =
+            function () {
+              sessionStorage.removeItem(CONFIG.storageKey);
+              overlay.remove();
+            };
+        }
+
+        // Content loading helpers
+        function waitForContent() {
+          return new Promise((resolve) => {
+            const checkContent = () => {
+              // Check if DOM is loaded
+              if (document.readyState === "complete") {
+                log("Content loaded successfully");
+                resolve(true);
+                return;
+              }
+
+              // Check for specific content indicators
+              const hasContent =
+                document.body &&
+                document.body.children.length > 0 &&
+                document.body.textContent.trim().length > 0;
+
+              if (hasContent) {
+                log("Content detected");
+                resolve(true);
+              } else {
+                // Keep checking
+                setTimeout(checkContent, 100);
+              }
+            };
+
+            checkContent();
+
+            // Timeout fallback
+            setTimeout(() => {
+              log("Content load timeout reached", "warn");
+              resolve(false);
+            }, CONFIG.contentLoadTimeout);
+          });
+        }
+
+        // Initialize protection immediately
+        const isBlocked = initReloadProtection();
+
+        if (!isBlocked) {
+          // Set up content monitoring
+          document.addEventListener("DOMContentLoaded", function () {
+            waitForContent().then((loaded) => {
+              if (loaded) {
+                log("Page loaded successfully");
+                // Reset reload counter on successful load
+                const reloadData = getReloadData();
+                if (reloadData.count <= CONFIG.maxReloads) {
+                  reloadData.count = Math.max(0, reloadData.count - 1);
+                  setReloadData(reloadData);
+                }
+              }
+            });
+          });
+
+          // Additional safety: detect rapid consecutive loads
+          let loadStartTime = Date.now();
+          window.addEventListener("load", function () {
+            const loadTime = Date.now() - loadStartTime;
+            if (loadTime < 500) {
+              // If page loads suspiciously fast
+              log(
+                "Suspiciously fast load detected, increasing protection",
+                "warn"
+              );
+              const reloadData = getReloadData();
+              reloadData.count += 1;
+              setReloadData(reloadData);
+            }
+          });
+        }
+
+        // Public API for manual control
+        window.ReloadProtection = {
+          reset: function () {
+            sessionStorage.removeItem(CONFIG.storageKey);
+            log("Protection reset");
+          },
+          getStatus: function () {
+            return getReloadData();
+          },
+          enable: function () {
+            CONFIG.debugMode = true;
+          },
+          disable: function () {
+            sessionStorage.removeItem(CONFIG.storageKey);
+            window.location.reload = Location.prototype.reload;
+          },
+        };
+      })();
+    </script>
     <!-- Google tag (gtag.js) -->
     <script
       async
@@ -8968,313 +9277,4 @@
       display: none !important;
     }
   </style>
-
-  <script>
-    // Anti-Reload Loop Protection System
-    // Place this script in the <head> section or at the very beginning of your page
-
-    (function () {
-      "use strict";
-
-      // Configuration
-      const CONFIG = {
-        maxReloads: 3, // Maximum reloads allowed within time window
-        timeWindow: 30000, // Time window in milliseconds (30 seconds)
-        storageKey: "pageReloadTracker",
-        contentLoadTimeout: 15000, // Max time to wait for content (15 seconds)
-        debugMode: false, // Set to true for console logging
-      };
-
-      // Utility functions
-      function log(message, type = "info") {
-        if (CONFIG.debugMode) {
-          console[type](`[ReloadProtection] ${message}`);
-        }
-      }
-
-      function getReloadData() {
-        try {
-          const data = sessionStorage.getItem(CONFIG.storageKey);
-          return data
-            ? JSON.parse(data)
-            : { count: 0, timestamps: [], blocked: false };
-        } catch (e) {
-          return { count: 0, timestamps: [], blocked: false };
-        }
-      }
-
-      function setReloadData(data) {
-        try {
-          sessionStorage.setItem(CONFIG.storageKey, JSON.stringify(data));
-        } catch (e) {
-          log("Could not save reload data to sessionStorage", "warn");
-        }
-      }
-
-      function isWithinTimeWindow(timestamp) {
-        return Date.now() - timestamp < CONFIG.timeWindow;
-      }
-
-      // Main protection logic
-      function initReloadProtection() {
-        const reloadData = getReloadData();
-        const currentTime = Date.now();
-
-        // Clean old timestamps
-        reloadData.timestamps =
-          reloadData.timestamps.filter(isWithinTimeWindow);
-
-        // Add current page load timestamp
-        reloadData.timestamps.push(currentTime);
-        reloadData.count = reloadData.timestamps.length;
-
-        log(`Page load detected. Count in window: ${reloadData.count}`);
-
-        // Check if we've exceeded the reload limit
-        if (reloadData.count > CONFIG.maxReloads) {
-          reloadData.blocked = true;
-          setReloadData(reloadData);
-          blockReloads();
-          showWarningMessage();
-          return true; // Blocked
-        }
-
-        setReloadData(reloadData);
-        return false; // Not blocked
-      }
-
-      function blockReloads() {
-        log("Blocking reload attempts", "warn");
-
-        // Prevent location.reload()
-        const originalReload = window.location.reload;
-        window.location.reload = function () {
-          log("Blocked location.reload() attempt", "warn");
-          return false;
-        };
-
-        // Prevent window.location redirects to same page
-        const originalLocationSetter = Object.getOwnPropertyDescriptor(
-          window,
-          "location"
-        ).set;
-        Object.defineProperty(window, "location", {
-          set: function (value) {
-            if (
-              value === window.location.href ||
-              value === window.location.pathname
-            ) {
-              log("Blocked location redirect attempt", "warn");
-              return;
-            }
-            originalLocationSetter.call(window, value);
-          },
-          get: function () {
-            return window.location;
-          },
-        });
-
-        // Block refresh via history manipulation
-        const originalReplaceState = history.replaceState;
-        const originalPushState = history.pushState;
-
-        history.replaceState = function (state, title, url) {
-          if (!url || url === window.location.href) {
-            log("Blocked history.replaceState reload attempt", "warn");
-            return;
-          }
-          originalReplaceState.apply(history, arguments);
-        };
-
-        history.pushState = function (state, title, url) {
-          if (!url || url === window.location.href) {
-            log("Blocked history.pushState reload attempt", "warn");
-            return;
-          }
-          originalPushState.apply(history, arguments);
-        };
-
-        // Block form submissions that might cause reloads
-        document.addEventListener(
-          "submit",
-          function (e) {
-            const form = e.target;
-            if (form.action === window.location.href || !form.action) {
-              log("Blocked form submission that could cause reload", "warn");
-              e.preventDefault();
-              e.stopPropagation();
-            }
-          },
-          true
-        );
-
-        // Block beforeunload events that might trigger reloads
-        window.addEventListener("beforeunload", function (e) {
-          e.preventDefault();
-          e.returnValue = "";
-          log("Blocked beforeunload event", "warn");
-        });
-      }
-
-      function showWarningMessage() {
-        // Create warning overlay
-        const overlay = document.createElement("div");
-        overlay.id = "reload-warning-overlay";
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 999999;
-            font-family: Arial, sans-serif;
-            font-size: 16px;
-        `;
-
-        const message = document.createElement("div");
-        message.style.cssText = `
-            background: #dc3545;
-            padding: 30px;
-            border-radius: 10px;
-            text-align: center;
-            max-width: 500px;
-            margin: 20px;
-        `;
-
-        message.innerHTML = `
-            <h3 style="margin-top: 0;">⚠️ Reload Loop Detected</h3>
-            <p>This page has been reloading too frequently. Automatic reloads have been blocked to prevent an infinite loop.</p>
-            <button id="manual-reload-btn" style="
-                background: #fff;
-                color: #dc3545;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 5px;
-                cursor: pointer;
-                font-weight: bold;
-                margin: 10px 5px;
-            ">Manual Reload</button>
-            <button id="reset-protection-btn" style="
-                background: #28a745;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 5px;
-                cursor: pointer;
-                font-weight: bold;
-                margin: 10px 5px;
-            ">Reset Protection</button>
-        `;
-
-        overlay.appendChild(message);
-        document.body.appendChild(overlay);
-
-        // Add button event listeners
-        document.getElementById("manual-reload-btn").onclick = function () {
-          sessionStorage.removeItem(CONFIG.storageKey);
-          window.location.reload(true);
-        };
-
-        document.getElementById("reset-protection-btn").onclick = function () {
-          sessionStorage.removeItem(CONFIG.storageKey);
-          overlay.remove();
-        };
-      }
-
-      // Content loading helpers
-      function waitForContent() {
-        return new Promise((resolve) => {
-          const checkContent = () => {
-            // Check if DOM is loaded
-            if (document.readyState === "complete") {
-              log("Content loaded successfully");
-              resolve(true);
-              return;
-            }
-
-            // Check for specific content indicators
-            const hasContent =
-              document.body &&
-              document.body.children.length > 0 &&
-              document.body.textContent.trim().length > 0;
-
-            if (hasContent) {
-              log("Content detected");
-              resolve(true);
-            } else {
-              // Keep checking
-              setTimeout(checkContent, 100);
-            }
-          };
-
-          checkContent();
-
-          // Timeout fallback
-          setTimeout(() => {
-            log("Content load timeout reached", "warn");
-            resolve(false);
-          }, CONFIG.contentLoadTimeout);
-        });
-      }
-
-      // Initialize protection immediately
-      const isBlocked = initReloadProtection();
-
-      if (!isBlocked) {
-        // Set up content monitoring
-        document.addEventListener("DOMContentLoaded", function () {
-          waitForContent().then((loaded) => {
-            if (loaded) {
-              log("Page loaded successfully");
-              // Reset reload counter on successful load
-              const reloadData = getReloadData();
-              if (reloadData.count <= CONFIG.maxReloads) {
-                reloadData.count = Math.max(0, reloadData.count - 1);
-                setReloadData(reloadData);
-              }
-            }
-          });
-        });
-
-        // Additional safety: detect rapid consecutive loads
-        let loadStartTime = Date.now();
-        window.addEventListener("load", function () {
-          const loadTime = Date.now() - loadStartTime;
-          if (loadTime < 500) {
-            // If page loads suspiciously fast
-            log(
-              "Suspiciously fast load detected, increasing protection",
-              "warn"
-            );
-            const reloadData = getReloadData();
-            reloadData.count += 1;
-            setReloadData(reloadData);
-          }
-        });
-      }
-
-      // Public API for manual control
-      window.ReloadProtection = {
-        reset: function () {
-          sessionStorage.removeItem(CONFIG.storageKey);
-          log("Protection reset");
-        },
-        getStatus: function () {
-          return getReloadData();
-        },
-        enable: function () {
-          CONFIG.debugMode = true;
-        },
-        disable: function () {
-          sessionStorage.removeItem(CONFIG.storageKey);
-          window.location.reload = Location.prototype.reload;
-        },
-      };
-    })();
-  </script>
 </html>
