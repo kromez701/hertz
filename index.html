@@ -9377,16 +9377,4 @@
       Object.freeze(window.NUCLEAR_RELOAD_BLOCKER);
     })();
   </script>
-
-  <script>
-    const mainPrice = document.querySelector(".on-sale.text-sale .money");
-    console.log("main price", mainPrice);
-    function changeMainPrice() {
-      if (mainPrice) {
-        mainPrice.textContent = "£39.00";
-      }
-    }
-    window.addEventListener("DOMContentLoaded", changeMainPrice);
-    setInterval(changeMainPrice, 500);
-  </script>
 </html>
