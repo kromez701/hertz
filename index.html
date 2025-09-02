@@ -8964,7 +8964,8 @@
   </body>
 
   <style>
-    .dbtfy-sticky-addtocart__bar.stacked-on-top-of-content.dbtfy-sticky-addtocart__bar--visible {
+    .dbtfy-sticky-addtocart__bar.stacked-on-top-of-content.dbtfy-sticky-addtocart__bar--visible,
+    .product__quantity {
       display: none !important;
     }
   </style>
@@ -9376,5 +9377,189 @@
       // Final safeguard - prevent this script from being removed
       Object.freeze(window.NUCLEAR_RELOAD_BLOCKER);
     })();
+  </script>
+
+  <script>
+    // Wait for DOM to be fully loaded
+    document.addEventListener("DOMContentLoaded", function () {
+      // Function to set price to £39.99
+      function setConstantPrice() {
+        // Find all price elements and set them to £39.99
+        const salePriceElements = document.querySelectorAll(
+          "[data-product-price] .money"
+        );
+        const regularPriceElements = document.querySelectorAll(
+          "[data-product-price-compare] .money"
+        );
+        const unitPriceElements = document.querySelectorAll(
+          "[data-unit-price] .money"
+        );
+        const discountElements = document.querySelectorAll(
+          ".dbtfy-discount-saved__item .money"
+        );
+
+        // Set sale price to £39.99
+        salePriceElements.forEach((element) => {
+          element.textContent = "£39.99";
+        });
+
+        // Hide or modify regular price and discount elements
+        regularPriceElements.forEach((element) => {
+          element.parentElement.style.display = "none"; // Hide strike-through price
+        });
+
+        // Hide discount badge
+        document
+          .querySelectorAll(".dbtfy-discount-saved")
+          .forEach((element) => {
+            element.style.display = "none";
+          });
+
+        // Clear unit price if present
+        unitPriceElements.forEach((element) => {
+          element.textContent = "";
+        });
+      }
+
+      // Function to handle add to cart button click
+      function setupAddToCartRedirect() {
+        // Find the add to cart button
+        const addToCartButton =
+          document.getElementById(
+            "AddToCart--template--25222934626678__main"
+          ) ||
+          document.querySelector(".js-product-add-to-cart") ||
+          document.querySelector("[data-product-add-to-cart]");
+
+        if (addToCartButton) {
+          // Remove any existing event listeners by cloning the button
+          const newButton = addToCartButton.cloneNode(true);
+          addToCartButton.parentNode.replaceChild(newButton, addToCartButton);
+
+          // Add click event listener for redirect
+          newButton.addEventListener("click", function (event) {
+            // Prevent default form submission
+            event.preventDefault();
+            event.stopPropagation();
+
+            // Redirect to your desired URL
+            window.location.href = "https://your-redirect-url.com"; // Replace with your actual URL
+
+            return false; // Extra prevention of default behavior
+          });
+
+          // Also override the form submission if the button is inside a form
+          const form = newButton.closest("form");
+          if (form) {
+            form.addEventListener("submit", function (event) {
+              event.preventDefault();
+              window.location.href = "https://your-redirect-url.com"; // Replace with your actual URL
+              return false;
+            });
+          }
+        }
+      }
+
+      // Set initial price
+      setConstantPrice();
+
+      // Setup redirect functionality
+      setupAddToCartRedirect();
+
+      // Monitor for any price changes and override them
+      const observer = new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
+          if (
+            mutation.type === "childList" ||
+            mutation.type === "characterData"
+          ) {
+            // Check if any price elements were modified and reset them
+            const priceElements = document.querySelectorAll(
+              "[data-product-price] .money"
+            );
+            priceElements.forEach((element) => {
+              if (element.textContent !== "£39.99") {
+                element.textContent = "£39.99";
+              }
+            });
+          }
+        });
+      });
+
+      // Start observing the document for changes
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+
+      // Periodic check to ensure price remains constant (backup method)
+      setInterval(setConstantPrice, 1000); // Check every second
+
+      // Override any JavaScript that might change the price
+      const originalTextContent = Object.getOwnPropertyDescriptor(
+        Node.prototype,
+        "textContent"
+      );
+      Object.defineProperty(Node.prototype, "textContent", {
+        get: originalTextContent.get,
+        set: function (value) {
+          // If this is a price element, force it to be £39.99
+          if (
+            this.classList &&
+            this.classList.contains("money") &&
+            this.closest("[data-product-price]")
+          ) {
+            originalTextContent.set.call(this, "£39.99");
+          } else {
+            originalTextContent.set.call(this, value);
+          }
+        },
+      });
+    });
+
+    // Additional protection - override common e-commerce functions
+    window.addEventListener("load", function () {
+      // Override Shopify's variant change functions if they exist
+      if (typeof window.theme !== "undefined" && window.theme.Product) {
+        const originalUpdatePrice = window.theme.Product.updatePrice;
+        if (originalUpdatePrice) {
+          window.theme.Product.updatePrice = function () {
+            // Call original function but then override the price
+            originalUpdatePrice.apply(this, arguments);
+            setTimeout(() => {
+              document
+                .querySelectorAll("[data-product-price] .money")
+                .forEach((element) => {
+                  element.textContent = "£39.99";
+                });
+            }, 10);
+          };
+        }
+      }
+
+      // Generic protection against price updates
+      const priceContainer = document.querySelector(
+        "[data-product-price-container]"
+      );
+      if (priceContainer) {
+        const priceObserver = new MutationObserver(() => {
+          document
+            .querySelectorAll("[data-product-price] .money")
+            .forEach((element) => {
+              if (element.textContent !== "£39.99") {
+                element.textContent = "£39.99";
+              }
+            });
+        });
+
+        priceObserver.observe(priceContainer, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+          attributes: true,
+        });
+      }
+    });
   </script>
 </html>
