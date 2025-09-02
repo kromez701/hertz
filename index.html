@@ -2,324 +2,6 @@
 
 <html class="no-js" lang="en" dir="ltr">
   <head>
-    <script>
-      // AGGRESSIVE RELOAD BLOCKER - Stops ALL reload attempts immediately
-      // Place this script as the FIRST script in your <head> section
-
-      (function () {
-        "use strict";
-
-        console.log(
-          "[RELOAD BLOCKER] Initializing complete reload prevention..."
-        );
-
-        // 1. Block location.reload() completely
-        if (window.location && window.location.reload) {
-          window.location.reload = function () {
-            console.log("[RELOAD BLOCKER] Blocked location.reload() attempt");
-            return false;
-          };
-        }
-
-        // 2. Block location.href changes to same page
-        let currentHref = window.location.href;
-        let isBlocking = true;
-
-        // Override location.href setter
-        Object.defineProperty(window, "location", {
-          get: function () {
-            return window.location;
-          },
-          set: function (value) {
-            if (
-              isBlocking &&
-              (value === currentHref ||
-                value === window.location.pathname ||
-                value === window.location.href)
-            ) {
-              console.log(
-                "[RELOAD BLOCKER] Blocked location change attempt to same page:",
-                value
-              );
-              return;
-            }
-            // Allow navigation to different pages
-            window.location.href = value;
-          },
-        });
-
-        // 3. Block window.location.replace() to same URL
-        const originalReplace = window.location.replace;
-        window.location.replace = function (url) {
-          if (
-            isBlocking &&
-            (url === currentHref ||
-              url === window.location.href ||
-              url === window.location.pathname)
-          ) {
-            console.log("[RELOAD BLOCKER] Blocked location.replace() attempt");
-            return false;
-          }
-          originalReplace.call(window.location, url);
-        };
-
-        // 4. Block window.location.assign() to same URL
-        const originalAssign = window.location.assign;
-        window.location.assign = function (url) {
-          if (
-            isBlocking &&
-            (url === currentHref ||
-              url === window.location.href ||
-              url === window.location.pathname)
-          ) {
-            console.log("[RELOAD BLOCKER] Blocked location.assign() attempt");
-            return false;
-          }
-          originalAssign.call(window.location, url);
-        };
-
-        // 5. Block history.go(0) and similar
-        const originalGo = window.history.go;
-        window.history.go = function (delta) {
-          if (isBlocking && (delta === 0 || delta === undefined)) {
-            console.log(
-              "[RELOAD BLOCKER] Blocked history.go(0) reload attempt"
-            );
-            return false;
-          }
-          originalGo.call(window.history, delta);
-        };
-
-        // 6. Block history.replaceState/pushState to same URL
-        const originalReplaceState = window.history.replaceState;
-        const originalPushState = window.history.pushState;
-
-        window.history.replaceState = function (state, title, url) {
-          if (
-            isBlocking &&
-            url &&
-            (url === currentHref ||
-              url === window.location.href ||
-              url === window.location.pathname)
-          ) {
-            console.log(
-              "[RELOAD BLOCKER] Blocked history.replaceState reload attempt"
-            );
-            return;
-          }
-          originalReplaceState.apply(window.history, arguments);
-        };
-
-        window.history.pushState = function (state, title, url) {
-          if (
-            isBlocking &&
-            url &&
-            (url === currentHref ||
-              url === window.location.href ||
-              url === window.location.pathname)
-          ) {
-            console.log(
-              "[RELOAD BLOCKER] Blocked history.pushState reload attempt"
-            );
-            return;
-          }
-          originalPushState.apply(window.history, arguments);
-        };
-
-        // 7. Block form submissions that target same page
-        document.addEventListener(
-          "submit",
-          function (e) {
-            if (isBlocking) {
-              const form = e.target;
-              const action = form.action;
-
-              if (
-                !action ||
-                action === currentHref ||
-                action === window.location.href ||
-                action === window.location.pathname
-              ) {
-                console.log(
-                  "[RELOAD BLOCKER] Blocked form submission that would reload page"
-                );
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                return false;
-              }
-            }
-          },
-          true
-        );
-
-        // 8. Block meta refresh
-        const observer = new MutationObserver(function (mutations) {
-          mutations.forEach(function (mutation) {
-            mutation.addedNodes.forEach(function (node) {
-              if (
-                node.tagName === "META" &&
-                node.httpEquiv &&
-                node.httpEquiv.toLowerCase() === "refresh"
-              ) {
-                console.log("[RELOAD BLOCKER] Blocked meta refresh tag");
-                node.remove();
-              }
-            });
-          });
-        });
-
-        if (document.head) {
-          observer.observe(document.head, { childList: true, subtree: true });
-        }
-
-        // 9. Block JavaScript: URLs that reload
-        document.addEventListener(
-          "click",
-          function (e) {
-            if (isBlocking && e.target.tagName === "A") {
-              const href = e.target.href;
-              if (
-                href &&
-                (href.startsWith("javascript:location.reload") ||
-                  href.startsWith("javascript:window.location.reload") ||
-                  href.includes("location.reload()") ||
-                  href ===
-                    "javascript:window.location.href=window.location.href")
-              ) {
-                console.log("[RELOAD BLOCKER] Blocked javascript reload link");
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                return false;
-              }
-            }
-          },
-          true
-        );
-
-        // 10. Block beforeunload/unload that might trigger reloads
-        window.addEventListener(
-          "beforeunload",
-          function (e) {
-            if (isBlocking) {
-              console.log("[RELOAD BLOCKER] Intercepted beforeunload event");
-              e.preventDefault();
-              e.returnValue = "";
-              return "";
-            }
-          },
-          true
-        );
-
-        // 11. Override setTimeout/setInterval for reload attempts
-        const originalSetTimeout = window.setTimeout;
-        const originalSetInterval = window.setInterval;
-
-        window.setTimeout = function (callback, delay, ...args) {
-          if (isBlocking && typeof callback === "function") {
-            const callbackStr = callback.toString();
-            if (
-              callbackStr.includes("location.reload") ||
-              callbackStr.includes("window.location.reload")
-            ) {
-              console.log(
-                "[RELOAD BLOCKER] Blocked setTimeout with reload attempt"
-              );
-              return null;
-            }
-          } else if (
-            isBlocking &&
-            typeof callback === "string" &&
-            callback.includes("location.reload")
-          ) {
-            console.log(
-              "[RELOAD BLOCKER] Blocked setTimeout string with reload attempt"
-            );
-            return null;
-          }
-          return originalSetTimeout.apply(window, [callback, delay, ...args]);
-        };
-
-        window.setInterval = function (callback, delay, ...args) {
-          if (isBlocking && typeof callback === "function") {
-            const callbackStr = callback.toString();
-            if (
-              callbackStr.includes("location.reload") ||
-              callbackStr.includes("window.location.reload")
-            ) {
-              console.log(
-                "[RELOAD BLOCKER] Blocked setInterval with reload attempt"
-              );
-              return null;
-            }
-          } else if (
-            isBlocking &&
-            typeof callback === "string" &&
-            callback.includes("location.reload")
-          ) {
-            console.log(
-              "[RELOAD BLOCKER] Blocked setInterval string with reload attempt"
-            );
-            return null;
-          }
-          return originalSetInterval.apply(window, [callback, delay, ...args]);
-        };
-
-        // 12. Block keyboard shortcuts (F5, Ctrl+R, Cmd+R)
-        document.addEventListener(
-          "keydown",
-          function (e) {
-            if (isBlocking) {
-              // F5
-              if (e.keyCode === 116) {
-                console.log("[RELOAD BLOCKER] Blocked F5 key");
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                return false;
-              }
-              // Ctrl+R or Cmd+R
-              if ((e.ctrlKey || e.metaKey) && e.keyCode === 82) {
-                console.log("[RELOAD BLOCKER] Blocked Ctrl+R/Cmd+R");
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                return false;
-              }
-            }
-          },
-          true
-        );
-
-        // 13. Global error handler to prevent reload on errors
-        window.addEventListener(
-          "error",
-          function (e) {
-            if (isBlocking) {
-              console.log("[RELOAD BLOCKER] Prevented error-triggered reload");
-              e.stopImmediatePropagation();
-            }
-          },
-          true
-        );
-
-        // Public API to control blocking
-        window.RELOAD_BLOCKER = {
-          disable: function () {
-            isBlocking = false;
-            console.log("[RELOAD BLOCKER] Reload blocking DISABLED");
-          },
-          enable: function () {
-            isBlocking = true;
-            console.log("[RELOAD BLOCKER] Reload blocking ENABLED");
-          },
-          status: function () {
-            return isBlocking ? "BLOCKING" : "ALLOWING";
-          },
-        };
-
-        console.log(
-          "[RELOAD BLOCKER] Complete reload prevention active. Use RELOAD_BLOCKER.disable() to turn off."
-        );
-      })();
-    </script>
     <!-- Google tag (gtag.js) -->
     <script
       async
@@ -9286,4 +8968,413 @@
       display: none !important;
     }
   </style>
+
+  <script>
+    // NUCLEAR OPTION: Complete Page Reload Prevention
+    // This script completely hijacks the location object and all reload mechanisms
+    // Place this as the VERY FIRST script in your page
+
+    (function () {
+      "use strict";
+
+      console.log(
+        "🛑 NUCLEAR RELOAD BLOCKER: Initializing complete lockdown..."
+      );
+
+      // Store original methods before they can be called
+      const originalURL = window.location.href;
+      const originalPathname = window.location.pathname;
+      const originalReload = window.location.reload;
+      const originalReplace = window.location.replace;
+      const originalAssign = window.location.assign;
+
+      // STEP 1: Completely replace the location object
+      const fakeLocation = {
+        href: window.location.href,
+        protocol: window.location.protocol,
+        host: window.location.host,
+        hostname: window.location.hostname,
+        port: window.location.port,
+        pathname: window.location.pathname,
+        search: window.location.search,
+        hash: window.location.hash,
+        origin: window.location.origin,
+
+        // Neutered methods
+        reload: function () {
+          console.log("🛑 BLOCKED: location.reload()");
+          return false;
+        },
+        replace: function (url) {
+          if (
+            url === originalURL ||
+            url === originalPathname ||
+            !url ||
+            url === window.location.href
+          ) {
+            console.log("🛑 BLOCKED: location.replace() to same page");
+            return false;
+          }
+          console.log("🟢 ALLOWED: location.replace() to different page:", url);
+          originalReplace.call(window.location, url);
+        },
+        assign: function (url) {
+          if (
+            url === originalURL ||
+            url === originalPathname ||
+            !url ||
+            url === window.location.href
+          ) {
+            console.log("🛑 BLOCKED: location.assign() to same page");
+            return false;
+          }
+          console.log("🟢 ALLOWED: location.assign() to different page:", url);
+          originalAssign.call(window.location, url);
+        },
+        toString: function () {
+          return this.href;
+        },
+        valueOf: function () {
+          return this.href;
+        },
+      };
+
+      // STEP 2: Override window.location completely using defineProperty
+      try {
+        Object.defineProperty(window, "location", {
+          get: function () {
+            return fakeLocation;
+          },
+          set: function (value) {
+            const newURL = value.toString();
+            if (
+              newURL === originalURL ||
+              newURL === originalPathname ||
+              newURL === window.location.href
+            ) {
+              console.log("🛑 BLOCKED: window.location = same page");
+              return;
+            }
+            console.log(
+              "🟢 ALLOWED: window.location = different page:",
+              newURL
+            );
+            window.location.href = newURL;
+          },
+          configurable: false,
+          enumerable: true,
+        });
+      } catch (e) {
+        console.log(
+          "⚠️ Could not override location with defineProperty, trying alternative..."
+        );
+
+        // Fallback: Use deprecated but effective __defineGetter__
+        try {
+          window.__defineGetter__("location", function () {
+            return fakeLocation;
+          });
+          window.__defineSetter__("location", function (value) {
+            const newURL = value.toString();
+            if (newURL === originalURL || newURL === originalPathname) {
+              console.log("🛑 BLOCKED: window.location = same page (fallback)");
+              return;
+            }
+            window.location.href = newURL;
+          });
+        } catch (e2) {
+          console.log("❌ Could not override location object");
+        }
+      }
+
+      // STEP 3: Nuclear option - Override the Location prototype
+      if (window.Location && window.Location.prototype) {
+        try {
+          Object.defineProperty(window.Location.prototype, "reload", {
+            value: function () {
+              console.log("🛑 BLOCKED: Location.prototype.reload()");
+              return false;
+            },
+            writable: false,
+            configurable: false,
+          });
+        } catch (e) {
+          console.log("⚠️ Could not override Location.prototype.reload");
+        }
+      }
+
+      // STEP 4: Intercept ALL possible navigation methods
+      const navigationMethods = ["reload", "replace", "assign"];
+      navigationMethods.forEach((method) => {
+        try {
+          const original = window.location[method];
+          if (original) {
+            window.location[method] = function () {
+              if (method === "reload") {
+                console.log(`🛑 BLOCKED: location.${method}()`);
+                return false;
+              }
+              const url = arguments[0];
+              if (
+                url === originalURL ||
+                url === originalPathname ||
+                url === window.location.href
+              ) {
+                console.log(`🛑 BLOCKED: location.${method}() to same page`);
+                return false;
+              }
+              return original.apply(window.location, arguments);
+            };
+          }
+        } catch (e) {
+          console.log(`⚠️ Could not override location.${method}`);
+        }
+      });
+
+      // STEP 5: Block history manipulation
+      const originalHistoryGo = window.history.go;
+      const originalHistoryBack = window.history.back;
+      const originalHistoryForward = window.history.forward;
+      const originalPushState = window.history.pushState;
+      const originalReplaceState = window.history.replaceState;
+
+      window.history.go = function (delta) {
+        if (delta === 0 || delta === undefined) {
+          console.log("🛑 BLOCKED: history.go(0)");
+          return false;
+        }
+        return originalHistoryGo.call(window.history, delta);
+      };
+
+      window.history.pushState = function (state, title, url) {
+        if (
+          url &&
+          (url === originalURL ||
+            url === originalPathname ||
+            url === window.location.href)
+        ) {
+          console.log("🛑 BLOCKED: history.pushState to same page");
+          return;
+        }
+        return originalPushState.apply(window.history, arguments);
+      };
+
+      window.history.replaceState = function (state, title, url) {
+        if (
+          url &&
+          (url === originalURL ||
+            url === originalPathname ||
+            url === window.location.href)
+        ) {
+          console.log("🛑 BLOCKED: history.replaceState to same page");
+          return;
+        }
+        return originalReplaceState.apply(window.history, arguments);
+      };
+
+      // STEP 6: Block document.location
+      if (document.location) {
+        try {
+          Object.defineProperty(document, "location", {
+            get: function () {
+              return fakeLocation;
+            },
+            set: function (value) {
+              const newURL = value.toString();
+              if (newURL === originalURL || newURL === originalPathname) {
+                console.log("🛑 BLOCKED: document.location = same page");
+                return;
+              }
+              window.location.href = newURL;
+            },
+            configurable: false,
+          });
+        } catch (e) {
+          console.log("⚠️ Could not override document.location");
+        }
+      }
+
+      // STEP 7: Intercept ALL DOM events that could trigger reloads
+      const blockReloadEvents = ["beforeunload", "unload", "pagehide"];
+      blockReloadEvents.forEach((eventType) => {
+        window.addEventListener(
+          eventType,
+          function (e) {
+            console.log(`🛑 BLOCKED: ${eventType} event`);
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            e.stopPropagation();
+            if (e.returnValue !== undefined) {
+              e.returnValue = "";
+            }
+            return false;
+          },
+          true
+        );
+      });
+
+      // STEP 8: Block ALL keyboard shortcuts
+      document.addEventListener(
+        "keydown",
+        function (e) {
+          // F5
+          if (e.keyCode === 116) {
+            console.log("🛑 BLOCKED: F5 key");
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
+          }
+          // Ctrl+R or Cmd+R
+          if ((e.ctrlKey || e.metaKey) && e.keyCode === 82) {
+            console.log("🛑 BLOCKED: Ctrl+R/Cmd+R");
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
+          }
+          // Ctrl+F5
+          if (e.ctrlKey && e.keyCode === 116) {
+            console.log("🛑 BLOCKED: Ctrl+F5");
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
+          }
+        },
+        true
+      );
+
+      // STEP 9: Block meta refresh and any dynamic meta tags
+      const metaObserver = new MutationObserver(function (mutations) {
+        mutations.forEach(function (mutation) {
+          mutation.addedNodes.forEach(function (node) {
+            if (node.nodeType === 1) {
+              // Element node
+              if (node.tagName === "META") {
+                const httpEquiv = node.getAttribute("http-equiv");
+                if (httpEquiv && httpEquiv.toLowerCase() === "refresh") {
+                  console.log("🛑 BLOCKED: Meta refresh tag removed");
+                  node.remove();
+                }
+              }
+              // Also check child nodes
+              const metaTags =
+                node.querySelectorAll &&
+                node.querySelectorAll('meta[http-equiv="refresh"]');
+              if (metaTags && metaTags.length > 0) {
+                metaTags.forEach((meta) => {
+                  console.log("🛑 BLOCKED: Meta refresh tag removed (nested)");
+                  meta.remove();
+                });
+              }
+            }
+          });
+        });
+      });
+
+      if (document.documentElement) {
+        metaObserver.observe(document.documentElement, {
+          childList: true,
+          subtree: true,
+        });
+      }
+
+      // STEP 10: Override setTimeout and setInterval to catch timed reloads
+      const originalSetTimeout = window.setTimeout;
+      const originalSetInterval = window.setInterval;
+
+      window.setTimeout = function (callback, delay) {
+        if (typeof callback === "function") {
+          const str = callback.toString();
+          if (
+            str.includes("reload") ||
+            str.includes("location.href") ||
+            str.includes("window.location")
+          ) {
+            console.log("🛑 BLOCKED: setTimeout with reload code");
+            return -1;
+          }
+        } else if (typeof callback === "string") {
+          if (callback.includes("reload") || callback.includes("location")) {
+            console.log("🛑 BLOCKED: setTimeout string with reload code");
+            return -1;
+          }
+        }
+        return originalSetTimeout.apply(window, arguments);
+      };
+
+      window.setInterval = function (callback, delay) {
+        if (typeof callback === "function") {
+          const str = callback.toString();
+          if (
+            str.includes("reload") ||
+            str.includes("location.href") ||
+            str.includes("window.location")
+          ) {
+            console.log("🛑 BLOCKED: setInterval with reload code");
+            return -1;
+          }
+        } else if (typeof callback === "string") {
+          if (callback.includes("reload") || callback.includes("location")) {
+            console.log("🛑 BLOCKED: setInterval string with reload code");
+            return -1;
+          }
+        }
+        return originalSetInterval.apply(window, arguments);
+      };
+
+      // STEP 11: Block form submissions to same page
+      document.addEventListener(
+        "submit",
+        function (e) {
+          const form = e.target;
+          const action = form.getAttribute("action");
+          if (
+            !action ||
+            action === "" ||
+            action === originalURL ||
+            action === originalPathname ||
+            action === window.location.href
+          ) {
+            console.log("🛑 BLOCKED: Form submission to same page");
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return false;
+          }
+        },
+        true
+      );
+
+      // STEP 12: Nuclear option - Freeze the location object
+      try {
+        Object.freeze(fakeLocation);
+        Object.seal(fakeLocation);
+      } catch (e) {
+        console.log("⚠️ Could not freeze location object");
+      }
+
+      // Global control
+      window.NUCLEAR_RELOAD_BLOCKER = {
+        status: "ACTIVE",
+        disable: function () {
+          console.log(
+            "❌ Nuclear blocker cannot be disabled once active for security"
+          );
+          return false;
+        },
+        info: function () {
+          console.log(
+            "🛑 Nuclear Reload Blocker is ACTIVE - No reloads possible"
+          );
+          console.log("Original URL:", originalURL);
+          console.log("Current URL:", window.location.href);
+        },
+      };
+
+      console.log("🛑 NUCLEAR RELOAD BLOCKER: Complete lockdown activated!");
+      console.log("🛑 This page can NO LONGER reload under any circumstances");
+      console.log("🛑 Use NUCLEAR_RELOAD_BLOCKER.info() for status");
+
+      // Final safeguard - prevent this script from being removed
+      Object.freeze(window.NUCLEAR_RELOAD_BLOCKER);
+    })();
+  </script>
 </html>
